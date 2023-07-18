@@ -37,5 +37,3 @@ class MongoDB:
             self.__db_client = MongoClient(atlas_url).production
         
         self.users_db = self.__db_client.users
-        self.shops_db = self.__db_client.shops
-        self.products_db = self.__db_client.products
