@@ -1,12 +1,14 @@
 # Python
 from datetime import date, datetime
 from typing import Optional
+from bson import ObjectId
 
 # Pydantic
 from pydantic import BaseModel, EmailStr, Field
 
 
 class User(BaseModel):
+    _id: ObjectId
     username: str = Field(
         ...,
         min_length = 4,

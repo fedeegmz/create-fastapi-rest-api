@@ -12,6 +12,9 @@ from database.mongo_client import MongoDB
 # models
 from models.user import User, UserDB, UserIn
 
+# util
+from util.white_lists import get_usernames_in_db
+
 
 db_client = MongoDB()
 
@@ -34,12 +37,12 @@ router = APIRouter(
 async def signup(
     user_data: UserIn = Body(...)
 ):
-    user_data = user_data.model_dump()
-    user_data["password"] = get_password_hash(user_data["password"])
-    if user_data["birth_date"]:
-        user_data["birth_date"] = str(user_data["birth_date"])
+    user_dict: dict = user_data.model_dump()
+    user_dict["password"] = get_password_hash(user_dict["password"])
+    if user_dict.get("birth_date", None):
+        user_dict["birth_date"] = str(user_dict["birth_date"])
     
-    if db_client.users_db.find_one({"username": user_data.get("username")}):
+    if user_dict.get("username") in get_usernames_in_db():
         raise HTTPException(
             status_code = status.HTTP_409_CONFLICT,
             detail = {
@@ -47,29 +50,44 @@ async def signup(
             }
         )
     
-    new_user = db_client.users_db.insert_one(UserIn(**user_data).model_dump())
+    user = UserIn(**user_dict)
     
-    return new_user
+    returned_data = db_client.users_db.insert_one(user.model_dump())
+    if not returned_data.acknowledged:
+        raise HTTPException(
+            status_code = status.HTTP_409_CONFLICT,
+            detail = {
+                "errmsg": "User not inserted"
+            }
+        )
+    
+    del user.password
+    user._id = returned_data.inserted_id
+    
+    return user
 
 ## show users ##
 @router.get(
-        path = "/",
-        status_code = status.HTTP_200_OK,
-        response_model = list[User],
-        summary = "Show all users",
-        tags = ["Users"])
+    path = "/",
+    status_code = status.HTTP_200_OK,
+    response_model = list[User],
+    summary = "Show all users",
+    tags = ["Users"]
+)
 async def users():
     users_list = db_client.users_db.find().limit(100)
+    users_list = [User(**user) for user in users_list]
     
     return users_list
 
 ## show a user ##
 @router.get(
-        path = "/{username}",
-        status_code = status.HTTP_200_OK,
-        response_model = User,
-        summary = "Show a user",
-        tags = ["Users"])
+    path = "/{username}",
+    status_code = status.HTTP_200_OK,
+    response_model = User,
+    summary = "Show a user",
+    tags = ["Users"]
+)
 async def user(username: str = Path(...)):
     user_db = db_client.users_db.find_one({"username": username})
     
@@ -81,15 +99,18 @@ async def user(username: str = Path(...)):
             }
         )
     
-    return user_db
+    user = User(**user_db)
+    
+    return user
 
 ## update a user ##
 @router.patch(
-        path = "/{username}",
-        status_code = status.HTTP_200_OK,
-        response_model = User,
-        summary = "Update a user",
-        tags = ["Users"]
+    path = "/{username}",
+    status_code = status.HTTP_200_OK,
+    response_model = User,
+    summary = "Update a user",
+    tags = ["Users"],
+    deprecated = True
 )
 async def update_user(
     current_user: User = Depends(get_current_user),
@@ -123,8 +144,9 @@ async def update_user(
     status_code = status.HTTP_200_OK,
     response_model = User,
     summary = "Delete a user",
-    tags = ["Users"]
-    )
+    tags = ["Users"],
+    deprecated = True
+)
 async def delete_user(
     current_user: User = Depends(get_current_user),
 ):
@@ -146,3 +168,13 @@ async def delete_user(
     # )
 
     # return user_deleted
+
+@router.get(
+    path = "/available-usernames",
+    status_code = status.HTTP_200_OK,
+    response_model = list,
+    summary = "Get available usernames",
+    tags = ["Users"]
+)
+async def get_available_usernames():
+    return get_usernames_in_db()
