@@ -1,5 +1,4 @@
 # Python
-import os
 from datetime import datetime, timedelta
 from typing import Union
 
@@ -14,6 +13,9 @@ from passlib.context import CryptContext
 # JWT
 from jose import jwt, JWTError
 
+# security
+from security.config import settings
+
 # database
 from database.mongo_client import mongodb_client
 
@@ -22,7 +24,7 @@ from models.user import UserIn
 from models.token import TokenData
 
 
-JWT_SECRETKEY = os.getenv("JWT_SECRETKEY")
+JWT_SECRETKEY = settings.jwt_secretkey
 ALGORITHM = "HS256"
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")

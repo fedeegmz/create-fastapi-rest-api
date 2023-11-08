@@ -1,19 +1,19 @@
-# Python
-import os
-
-# pymongo
+# PyMongo
 from pymongo import MongoClient
+
+# security
+from security.config import settings
 
 
 class MongoDB:
 
     def __init__(self) -> None:
-        username = os.getenv("")
-        password = os.getenv("")
-        path = "@main.v5svgs3.mongodb.net/?retryWrites=true&w=majority"
-        test = os.getenv("IS_TEST_DB", None)
+        username = settings.mongodb_user
+        password = settings.mongodb_password
+        host = settings.mongodb_host
+        test = settings.is_test_db
 
-        atlas_url = f'mongodb+srv://{username}:{password}{path}'
+        atlas_url = f'mongodb+srv://{username}:{password}{host}'
         
         if test:
             self.__db_client = MongoClient(atlas_url).test

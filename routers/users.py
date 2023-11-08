@@ -2,11 +2,10 @@
 from fastapi import APIRouter, Path, Body
 from fastapi import HTTPException, status, Depends
 
-
 # auth
 from auth.auth import get_password_hash, get_current_user
 
-# db
+# database
 from database.mongo_client import mongodb_client
 
 # models
