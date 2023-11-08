@@ -15,7 +15,7 @@ from passlib.context import CryptContext
 from jose import jwt, JWTError
 
 # database
-from database.mongo_client import MongoDB
+from database.mongo_client import mongodb_client
 
 # models
 from models.user import UserIn
@@ -24,8 +24,6 @@ from models.token import TokenData
 
 JWT_SECRETKEY = os.getenv("JWT_SECRETKEY")
 ALGORITHM = "HS256"
-
-db_client = MongoDB()
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
@@ -42,7 +40,7 @@ def get_password_hash(password: str):
     return pwd_context.hash(password)
 
 def authenticate_user(username: str, password: str):
-    user = db_client.users_db.find_one({"username": username})
+    user = mongodb_client.users_db.find_one({"username": username})
     
     if not user:
         return False
@@ -91,7 +89,7 @@ async def get_current_user(token = Depends(oauth2_scheme)):
     except JWTError:
         raise credentials_exception
     
-    user = db_client.users_db.find_one({"username": token_data.username})
+    user = mongodb_client.users_db.find_one({"username": token_data.username})
 
     if not user:
         raise credentials_exception

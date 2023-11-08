@@ -1,11 +1,9 @@
 # database
-from database.mongo_client import MongoDB
+from database.mongo_client import mongodb_client
 
-
-db_client = MongoDB()
 
 def get_usernames_in_db():
-    usernames: list = db_client.users_db.find(
+    usernames: list = mongodb_client.users_db.find(
         {},
         {
             "username": 1,

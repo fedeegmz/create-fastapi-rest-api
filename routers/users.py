@@ -7,7 +7,7 @@ from fastapi import HTTPException, status, Depends
 from auth.auth import get_password_hash, get_current_user
 
 # db
-from database.mongo_client import MongoDB
+from database.mongo_client import mongodb_client
 
 # models
 from models.user import User, UserDB, UserIn
@@ -15,8 +15,6 @@ from models.user import User, UserDB, UserIn
 # util
 from util.white_lists import get_usernames_in_db
 
-
-db_client = MongoDB()
 
 router = APIRouter(
     prefix = "/users",
@@ -52,7 +50,7 @@ async def signup(
     
     user = UserIn(**user_dict)
     
-    returned_data = db_client.users_db.insert_one(user.model_dump())
+    returned_data = mongodb_client.users_db.insert_one(user.model_dump())
     if not returned_data.acknowledged:
         raise HTTPException(
             status_code = status.HTTP_409_CONFLICT,
@@ -75,7 +73,7 @@ async def signup(
     tags = ["Users"]
 )
 async def users():
-    users_list = db_client.users_db.find().limit(100)
+    users_list = mongodb_client.users_db.find().limit(100)
     users_list = [User(**user) for user in users_list]
     
     return users_list
@@ -89,7 +87,7 @@ async def users():
     tags = ["Users"]
 )
 async def user(username: str = Path(...)):
-    user_db = db_client.users_db.find_one({"username": username})
+    user_db = mongodb_client.users_db.find_one({"username": username})
     
     if not user_db:
         raise HTTPException(
@@ -119,7 +117,7 @@ async def update_user(
         example = [{"name": "Tony"}, {"lastname": "Stark"}]
     )
 ):
-    user = db_client.users_db.find_one({"username": current_user.username})
+    user = mongodb_client.users_db.find_one({"username": current_user.username})
     user = UserDB(**user)
     
     if user.disabled:
@@ -131,7 +129,7 @@ async def update_user(
         )
     
     # TODO
-    # user_updated = db_client.get_user_with_username_and_update(
+    # user_updated = mongodb_client.get_user_with_username_and_update(
     #     username = current_user.username,
     #     updates = user_updates
     # )
@@ -150,7 +148,7 @@ async def update_user(
 async def delete_user(
     current_user: User = Depends(get_current_user),
 ):
-    user = db_client.users_db.find_one({"username": current_user.username})
+    user = mongodb_client.users_db.find_one({"username": current_user.username})
     user = UserDB(**user)
     
     if user.disabled:
@@ -162,7 +160,7 @@ async def delete_user(
         )
     
     # TODO
-    # user_deleted = db_client.get_user_with_username_and_update(
+    # user_deleted = mongodb_client.get_user_with_username_and_update(
     #     username = current_user.username,
     #     updates = [{"disabled": True}]
     # )
