@@ -20,7 +20,7 @@ from security.config import settings
 from database.mongo_client import mongodb_client
 
 # models
-from models.user import UserIn
+from models.user import User, UserDb
 from models.token import TokenData
 
 
@@ -47,14 +47,12 @@ def authenticate_user(username: str, password: str):
     if not user:
         return False
     
-    user = UserIn(**user)
+    user = UserDb(**user)
     
     if not verify_password(password, user.password):
         return False
-    
-    del user.password
 
-    return user
+    return User(**user.model_dump())
 
 def create_access_token(data: dict, expires_delta: Union[timedelta, None] = None):
     to_encode = data.copy()
@@ -70,9 +68,8 @@ def create_access_token(data: dict, expires_delta: Union[timedelta, None] = None
 
 
 async def get_current_user(token = Depends(oauth2_scheme)):
-    print("En get_current_user")
     credentials_exception = HTTPException(
-        status_code = status.HTTP_400_BAD_REQUEST,
+        status_code = status.HTTP_401_UNAUTHORIZED,
         headers = {"WWW-Authenticate": "Bearer"},
         detail = {
             "errmsg": "Could not validate credentials"
@@ -96,7 +93,7 @@ async def get_current_user(token = Depends(oauth2_scheme)):
     if not user:
         raise credentials_exception
     
-    user = UserIn(**user)
+    user = User(**user)
     
     if user.disabled:
         raise HTTPException(

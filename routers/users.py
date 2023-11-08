@@ -1,5 +1,8 @@
+# Python
+from typing import Union
+
 # FastAPI
-from fastapi import APIRouter, Path, Body
+from fastapi import APIRouter, Path, Query, Body
 from fastapi import HTTPException, status, Depends
 
 # auth
@@ -9,37 +12,30 @@ from auth.auth import get_password_hash, get_current_user
 from database.mongo_client import mongodb_client
 
 # models
-from models.user import User, UserDB, UserIn
+from models.user import User, UserDb
 
 # util
-from util.white_lists import get_usernames_in_db
+from util.white_lists import get_users_id_in_db, get_usernames_in_db
 
 
 router = APIRouter(
-    prefix = "/users",
-    responses = {status.HTTP_404_NOT_FOUND: {"error": "Not Found"}}
+    prefix = "/users"
 )
-
 
 ### PATH OPERATIONS ###
 
 ## register a user ##
 @router.post(
-    path = "/signup",
+    path = "/register",
     status_code = status.HTTP_201_CREATED,
     response_model = User,
     summary = "Register a user",
     tags = ["Users"]
 )
-async def signup(
-    user_data: UserIn = Body(...)
-):
-    user_dict: dict = user_data.model_dump()
-    user_dict["password"] = get_password_hash(user_dict["password"])
-    if user_dict.get("birth_date", None):
-        user_dict["birth_date"] = str(user_dict["birth_date"])
-    
-    if user_dict.get("username") in get_usernames_in_db():
+async def create_user(
+    data: UserDb = Body(...)
+):  
+    if data.username in get_usernames_in_db():
         raise HTTPException(
             status_code = status.HTTP_409_CONFLICT,
             detail = {
@@ -47,9 +43,8 @@ async def signup(
             }
         )
     
-    user = UserIn(**user_dict)
-    
-    returned_data = mongodb_client.users_db.insert_one(user.model_dump())
+    data.password = get_password_hash(data.password)
+    returned_data = mongodb_client.users_db.insert_one(data.model_dump())
     if not returned_data.acknowledged:
         raise HTTPException(
             status_code = status.HTTP_409_CONFLICT,
@@ -58,47 +53,73 @@ async def signup(
             }
         )
     
-    del user.password
-    user._id = returned_data.inserted_id
+    inserted_user = mongodb_client.users_db.find_one({"id": data.id})
+    inserted_user = User(**inserted_user)
+
+    return inserted_user
+
+
+## get user by id ##
+@router.get(
+    path = "/{id}",
+    status_code = status.HTTP_200_OK,
+    response_model = User,
+    tags = ["Users"],
+    summary = "Get a user by ID"
+)
+async def get_user(
+    id: str = Path(...)
+):
+    if not id in get_users_id_in_db():
+        raise HTTPException(
+            status_code = status.HTTP_400_BAD_REQUEST,
+            detail = {
+                "errmsg": "Incorrect user ID"
+            }
+        )
+
+    user = mongodb_client.users_db.find_one({"id": id})
+    if not user:
+        return None
     
+    user = User(**user)
+
     return user
 
-## show users ##
+
+## get users or a user by username
 @router.get(
     path = "/",
     status_code = status.HTTP_200_OK,
-    response_model = list[User],
-    summary = "Show all users",
-    tags = ["Users"]
+    response_model = Union[User, list],
+    tags = ["Users"],
+    summary = "Get a user or users"
 )
-async def users():
-    users_list = mongodb_client.users_db.find().limit(100)
-    users_list = [User(**user) for user in users_list]
-    
-    return users_list
+async def get_users(
+    username: Union[str, None] = Query(default=None)
+):
+    if not username:
+        users = mongodb_client.users_db.find().limit(25)
+        users = [User(**user) for user in users]
 
-## show a user ##
-@router.get(
-    path = "/{username}",
-    status_code = status.HTTP_200_OK,
-    response_model = User,
-    summary = "Show a user",
-    tags = ["Users"]
-)
-async def user(username: str = Path(...)):
-    user_db = mongodb_client.users_db.find_one({"username": username})
+        return users
     
-    if not user_db:
+    if not username.lower() in get_usernames_in_db():
         raise HTTPException(
-            status_code = status.HTTP_404_NOT_FOUND,
+            status_code = status.HTTP_400_BAD_REQUEST,
             detail = {
-                "errmsg": "User not found"
+                "errmsg": "Incorrect username"
             }
         )
+
+    user = mongodb_client.users_db.find_one({"username": username})
+    if not user:
+        return None
     
-    user = User(**user_db)
-    
+    user = User(**user)
+
     return user
+
 
 ## update a user ##
 @router.patch(
@@ -117,7 +138,7 @@ async def update_user(
     )
 ):
     user = mongodb_client.users_db.find_one({"username": current_user.username})
-    user = UserDB(**user)
+    user = User(**user)
     
     if user.disabled:
         raise HTTPException(
@@ -135,6 +156,7 @@ async def update_user(
     
     # return user_updated
 
+
 ## delete a user ##
 @router.delete(
     path = "/{username}",
@@ -148,7 +170,7 @@ async def delete_user(
     current_user: User = Depends(get_current_user),
 ):
     user = mongodb_client.users_db.find_one({"username": current_user.username})
-    user = UserDB(**user)
+    user = User(**user)
     
     if user.disabled:
         raise HTTPException(
@@ -165,13 +187,3 @@ async def delete_user(
     # )
 
     # return user_deleted
-
-@router.get(
-    path = "/available-usernames",
-    status_code = status.HTTP_200_OK,
-    response_model = list,
-    summary = "Get available usernames",
-    tags = ["Users"]
-)
-async def get_available_usernames():
-    return get_usernames_in_db()
